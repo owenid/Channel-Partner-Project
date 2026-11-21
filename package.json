@@ -1,0 +1,17 @@
+{
+  "name": "channel-partner-portal",
+  "private": true,
+  "workspaces": [
+    "server",
+    "web"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace server & npm run dev --workspace web",
+    "dev:server": "npm run dev --workspace server",
+    "dev:web": "npm run dev --workspace web",
+    "build": "npm run build --workspace server && npm run build --workspace web"
+  },
+  "overrides": {
+    "esbuild": "0.24.2"
+  }
+}
