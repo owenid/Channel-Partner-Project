@@ -224,16 +224,27 @@ export function mockServices(f: ServiceFilter) {
   return { items: rows.slice(start, start + f.pageSize), page: f.page, pageSize: f.pageSize, total: rows.length };
 }
 
+const pendingChanges = new Map<string, ServiceDetail['pendingChange']>();
+const customers = ['Jeremy Matthews', 'Amanda Jacob', 'Priya Patel', 'Tom Barnes', 'Grace Clarke', 'Liam Hughes'];
+const billCycleEnd = () => {
+  const d = new Date(); d.setMonth(d.getMonth() + 1, 0); // last day of this month
+  return d.toISOString().slice(0, 10);
+};
+
 export function mockServiceDetail(id: string): ServiceDetail | undefined {
   const s = allServices.find((x) => x.id === id);
   if (!s) return undefined;
   const n = allServices.indexOf(s);
+  const hex = (0x1164 + n).toString(16);
   return {
-    ...s, address: '20 Fratton Road', city: s.location,
-    radiusUsername: `${s.serviceReference.toLowerCase()}@xyzcomms.net`,
-    ipv4: `185.12.${40 + n}.${10 + n}/32`, ipv6: `2a02:8010:${(0x6a00 + n).toString(16)}::/56`,
+    ...s, address: '20 Fratton Road', city: s.location, customerName: customers[n % customers.length],
+    radiusUsername: `GN${784749 + n}@giga.net.uk`,
+    ipv4: `37.48.229.${(249 + n) % 255}`,
+    ipv6: `2a05:87c6:1:${hex}::/64`, ipv6Prefix: `2a05:87c6:${(0x1169 + n).toString(16)}::/48`,
     online: s.status === 'Operational',
-    radiusSessions: [],
+    suspended: s.status === 'Suspended',
+    pendingChange: pendingChanges.get(id) ?? null,
+    billCycleEnd: billCycleEnd(),
   };
 }
 
@@ -242,6 +253,61 @@ export function mockCeaseService(id: string, reason: string) {
   if (!s) return undefined;
   s.status = 'Alt status';
   return { ...mockServiceDetail(id)!, ceaseRequested: { reason, at: new Date().toISOString() } };
+}
+
+// ---- Radius session history ----
+import type { ModifyOptions, ProductOption, RadiusSession, EffectiveMode, SuspensionAction } from '../types.js';
+export function mockSessions(id: string, page: number, pageSize: number) {
+  const d = mockServiceDetail(id);
+  if (!d) return undefined;
+  const total = d.status === 'Alt status' ? 0 : 14;
+  const items: RadiusSession[] = [];
+  for (let i = (page - 1) * pageSize; i < Math.min(page * pageSize, total); i++) {
+    const start = new Date(Date.UTC(2023, 1, 20 - i * 4, 8 + (i % 12), 22, 36));
+    const dur = (2 + (i % 4)) * 86400 + (i % 7) * 3600 + 1560;
+    const open = i === 0 && d.online;
+    items.push({
+      id: `${id}-s${i}`, username: d.radiusUsername, start: start.toISOString(),
+      end: open ? null : new Date(start.getTime() + dur * 1000).toISOString(),
+      durationSeconds: dur, downloadBytes: Math.round((8 + (i * 7.3) % 40) * 1e9), uploadBytes: Math.round((1 + (i * 1.7) % 6) * 1e9),
+    });
+  }
+  return { items, page, pageSize, total };
+}
+
+// ---- Modify (upgrade / downgrade) ----
+const catalogue = [150, 300, 500, 900].map((mbps) => ({ mbps, name: (supplier: string) => `${supplier} SMB FTTP ${mbps} (12m) STD` }));
+export function mockModifyOptions(id: string): ModifyOptions | undefined {
+  const d = mockServiceDetail(id);
+  if (!d) return undefined;
+  const current = Number(d.serviceName.match(/FTTP (\d+)/)?.[1] ?? 500);
+  const supplier = d.serviceName.split(' SMB')[0].split(' National')[0];
+  const products: ProductOption[] = catalogue
+    .filter((p) => p.mbps !== current)
+    .map((p) => ({ id: `fttp-${p.mbps}`, name: p.name(supplier), bandwidthMbps: p.mbps, direction: p.mbps > current ? 'upgrade' : 'downgrade' }));
+  return { currentProduct: d.serviceName, currentBandwidthMbps: current, products, effectiveModes: ['Immediately', 'At the end of bill cycle'], billCycleEnd: d.billCycleEnd };
+}
+
+export function mockModifyService(id: string, productId: string, mode: EffectiveMode) {
+  const opts = mockModifyOptions(id);
+  const product = opts?.products.find((p) => p.id === productId);
+  if (!opts || !product) return undefined;
+  const s = allServices.find((x) => x.id === id)!;
+  if (mode === 'Immediately') {
+    s.serviceName = product.name;
+    pendingChanges.delete(id);
+  } else {
+    pendingChanges.set(id, { toProduct: product.name, effective: mode, effectiveDate: opts.billCycleEnd });
+  }
+  return mockServiceDetail(id);
+}
+
+// ---- Suspend / unsuspend ----
+export function mockSuspension(id: string, action: SuspensionAction) {
+  const s = allServices.find((x) => x.id === id);
+  if (!s) return undefined;
+  s.status = action === 'suspend' ? 'Suspended' : 'Operational';
+  return mockServiceDetail(id);
 }
 
 // ---- Order updates feed ----

@@ -1,7 +1,8 @@
 import { ReactNode, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useApi } from '../api/client';
-import type { CaseDetail, OrderDetail, ServiceDetail } from '../api/types';
+import type { CaseDetail, OrderDetail, Page, RadiusSession, ServiceDetail } from '../api/types';
+import { ModifyServiceModal, SuspendServiceModal } from './serviceModals';
 import { Badge, Icon, Pagination, RO, Sort, Th, authorIcon, fmtDate, fmtDateTime } from '../components/ui';
 import { AmendContactModal, AmendDateModal, CommentModal, ReasonModal } from './modals';
 
@@ -116,50 +117,123 @@ export function OrderPage() {
 }
 
 // ---------- Live service ----------
+const SESSIONS_PAGE = 5;
+const fmtBytes = (b: number) => (b >= 1e9 ? `${(b / 1e9).toFixed(2)} GB` : `${(b / 1e6).toFixed(1)} MB`);
+const fmtDuration = (s: number) => {
+  const d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+  const t = [h, m, sec].map((n) => String(n).padStart(2, '0')).join(':');
+  return d ? `${d} day${d > 1 ? 's' : ''} ${t}` : t;
+};
+const fmtSeconds = (iso: string) => `${fmtDateTime(iso)}:${String(new Date(iso).getSeconds()).padStart(2, '0')}`;
+
+/** Read-only field with an inline icon button (copy / reveal). */
+const ROAction = ({ label, value, icon, onClick, title }: { label: string; value: ReactNode; icon: string; onClick: () => void; title: string }) => (
+  <RO label={label} value={
+    <span style={{ display: 'flex', width: '100%', alignItems: 'center', gap: 8 }}>
+      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value}</span>
+      <button type="button" onClick={onClick} title={title} aria-label={title} style={{ marginLeft: 'auto', background: 'none', border: 0, color: 'var(--muted)' }}>{icon}</button>
+    </span>
+  } />
+);
+
 export function ServicePage() {
   const { id } = useParams();
   const s = useApi<ServiceDetail>(`/services/${id}`);
-  const [cease, setCease] = useState(false);
+  const [page, setPage] = useState(1);
+  const sessions = useApi<Page<RadiusSession>>(`/services/${id}/sessions?page=${page}&pageSize=${SESSIONS_PAGE}`);
+  const [modal, setModal] = useState<'modify' | 'suspend' | 'cease' | null>(null);
   const [toast, setToast] = useState<string>();
   const [shown, setShown] = useState(false);
   if (!s.data) return <Loading error={s.error} back="/connections?tab=live-service" />;
   const d = s.data;
-  const copy = (v: string) => navigator.clipboard?.writeText(v).then(() => { setToast('Copied'); setTimeout(() => setToast(undefined), 1500); });
+  const ceased = d.status === 'Alt status';
+  const flash = (msg: string) => { setToast(msg); setTimeout(() => setToast(undefined), 3500); };
+  const copy = (v: string) => navigator.clipboard?.writeText(v).then(() => flash('Copied to clipboard'));
+  const done = (msg: string) => (r: ServiceDetail) => { s.setData(r); setModal(null); flash(msg); sessions.reload(); };
 
   return (
-    <Frame title={`${d.serviceReference} - ${d.serviceName}`}>
+    <Frame title={`${d.serviceReference} - ${d.customerName}`}>
       <div className="toolbar">
-        <Link className="btn btn-teal btn-sm" style={{ height: 36 }} to={`/connections?tab=support-cases`}>Raise a support case {Icon.chevronRight()}</Link>
-        <div className="end"><button className="btn btn-red btn-sm" style={{ height: 36 }} disabled={d.status === 'Alt status'} onClick={() => setCease(true)}>Cease service {Icon.xCircle()}</button></div>
+        <button className="btn btn-teal btn-sm" style={{ height: 36 }} disabled={ceased || d.suspended} onClick={() => setModal('modify')}>Modify service {Icon.pencil()}</button>
+        <button className="btn btn-teal btn-sm" style={{ height: 36 }} disabled={ceased} onClick={() => setModal('suspend')}>
+          {d.suspended ? 'Unsuspend service' : 'Suspend service'} {Icon.calendar()}
+        </button>
+        <div className="end"><button className="btn btn-red btn-sm" style={{ height: 36 }} disabled={ceased} onClick={() => setModal('cease')}>Cease service {Icon.xCircle()}</button></div>
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr', gap: 24, marginBottom: 30 }}>
+
+      {d.suspended && (
+        <div className="panel" role="status" style={{ marginBottom: 16, borderColor: 'var(--orange)', background: '#fff8ec', display: 'flex', gap: 12, alignItems: 'center', fontSize: 13 }}>
+          <Badge status="Suspended" />
+          <span>This service is <strong>suspended</strong>. Billing continues until it is unsuspended or ceased.</span>
+        </div>
+      )}
+      {d.pendingChange && (
+        <div className="panel" role="status" style={{ marginBottom: 24, borderColor: 'var(--teal)', background: '#f2fafb', display: 'flex', gap: 12, alignItems: 'center', fontSize: 13 }}>
+          <span className="badge b-blue">Pending</span>
+          <span>Change to <strong>{d.pendingChange.toProduct}</strong> is scheduled for the end of the bill cycle ({fmtDate(d.pendingChange.effectiveDate)}).</span>
+        </div>
+      )}
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', gap: 24, marginBottom: 38 }}>
         <div className="panel"><h3>Connection info</h3>
           <div className="ro-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
-            <RO label="Radius username" value={<span style={{ display: 'flex', width: '100%' }}>{d.radiusUsername}<button className="help" style={{ marginLeft: 'auto', background: 'none' }} onClick={() => copy(d.radiusUsername)} aria-label="Copy">⧉</button></span>} />
+            <ROAction label="Radius username" value={d.radiusUsername} icon="⧉" title="Copy username" onClick={() => copy(d.radiusUsername)} />
             <RO label="IPv4" value={d.ipv4} />
-            <RO label="Radius password" value={<span style={{ display: 'flex', width: '100%' }}>{shown ? 'Managed in ServiceNow' : '••••••••••'}<button className="help" style={{ marginLeft: 'auto', background: 'none' }} onClick={() => setShown(!shown)} aria-label="Show">👁</button></span>} />
+            <ROAction label="Radius password" value={shown ? 'Available from ServiceNow on request' : '••••••••••'} icon="👁" title={shown ? 'Hide password' : 'Show password'} onClick={() => setShown(!shown)} />
             <RO label="IPv6" value={d.ipv6} />
-            <RO label="Status" value={<span style={{ color: d.online ? 'var(--green)' : 'var(--red)', fontWeight: 700 }}>{d.online ? 'Online' : 'Offline'}</span>} />
+            <RO label="Status" value={<span style={{ color: d.online ? 'var(--green)' : 'var(--red)', fontWeight: 700 }}>{d.suspended ? 'Suspended' : d.online ? 'Online' : 'Offline'}</span>} />
+            <RO label="IPv6 prefix" value={d.ipv6Prefix} />
           </div>
         </div>
         <div className="panel"><h3>Location info</h3>
           <div className="ro-grid"><RO label="Address" value={d.address} /><RO label="Postcode" value={d.postcode} /><RO label="City" value={d.city} /></div>
         </div>
-        <div className="panel"><h3>Order details</h3>
-          <div className="ro-grid"><RO label="Order reference" value={d.orderReference} /><RO label="Quote reference" value={d.quoteReference} /><RO label="Status" value={<Badge status={d.status} />} /></div>
+        <div className="panel"><h3>Service details</h3>
+          <div className="ro-grid">
+            <RO label="Current product" value={d.serviceName} />
+            <RO label="Order reference" value={d.orderReference} />
+            <RO label="Service status" value={<Badge status={d.status} />} />
+          </div>
         </div>
       </div>
-      {d.radiusSessions.length === 0 && (
-        <div className="empty" style={{ color: 'var(--muted)' }}>
-          <div style={{ color: 'var(--red)', fontSize: 26 }}>ⓘ</div>
-          <strong>No radius sessions available</strong>
-          <div style={{ fontSize: 11 }}>Sessions will appear when available</div>
-        </div>
-      )}
-      {cease && (
+
+      <SubTabs label="Session history" />
+      <div style={{ paddingTop: 26 }}>
+        {sessions.data && sessions.data.total === 0 ? (
+          <div className="empty">
+            <div style={{ color: 'var(--red)', fontSize: 26 }}>ⓘ</div>
+            <strong>No radius sessions available</strong>
+            <div style={{ fontSize: 11 }}>Sessions will appear when available</div>
+          </div>
+        ) : (
+          <>
+            <div className="table-wrap"><table>
+              <thead><tr><Th label="Username" /><Th label="Start" /><Th label="End" /><Th label="Duration" /><Th label="Download" /><Th label="Upload" /></tr></thead>
+              <tbody style={{ opacity: sessions.loading ? 0.55 : 1 }}>
+                {!sessions.data && <tr><td colSpan={6}><div className="skeleton" style={{ height: 160 }} /></td></tr>}
+                {sessions.data?.items.map((r) => (
+                  <tr key={r.id}>
+                    <td>{r.username}</td>
+                    <td>{fmtSeconds(r.start)}</td>
+                    <td>{r.end ? fmtSeconds(r.end) : <span className="badge b-green">● Active</span>}</td>
+                    <td>{fmtDuration(r.durationSeconds)}</td>
+                    <td>{fmtBytes(r.downloadBytes)}</td>
+                    <td>{fmtBytes(r.uploadBytes)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table></div>
+            {sessions.data && <Pagination page={page} pageSize={SESSIONS_PAGE} total={sessions.data.total} onPage={setPage} />}
+          </>
+        )}
+      </div>
+
+      {modal === 'modify' && <ModifyServiceModal service={d} onClose={() => setModal(null)} onDone={done('Service change submitted')} />}
+      {modal === 'suspend' && <SuspendServiceModal service={d} onClose={() => setModal(null)} onDone={done(d.suspended ? 'Service unsuspended' : 'Service suspended')} />}
+      {modal === 'cease' && (
         <ReasonModal title="Cease service" label="Cease Reason" product={d.serviceName} path={`/services/${d.id}/cease`}
-          onClose={() => setCease(false)}
-          onDone={() => { setCease(false); s.reload(); setToast('Cease requested'); setTimeout(() => setToast(undefined), 3500); }} />
+          onClose={() => setModal(null)}
+          onDone={() => { setModal(null); s.reload(); flash('Cease requested'); }} />
       )}
       {toast && <div className="toast" role="status">{toast}</div>}
     </Frame>

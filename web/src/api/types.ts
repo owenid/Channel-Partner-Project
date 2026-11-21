@@ -41,8 +41,16 @@ export interface Service {
   quoteReference: string; serviceName: string; status: string; createdAt: string;
 }
 export interface ServiceDetail extends Service {
-  address: string; city: string; radiusUsername: string; ipv4: string; ipv6: string; online: boolean;
-  radiusSessions: { start: string; end: string | null; ip: string }[];
+  address: string; city: string; customerName: string;
+  radiusUsername: string; ipv4: string; ipv6: string; ipv6Prefix: string;
+  online: boolean; suspended: boolean; billCycleEnd: string;
+  pendingChange: { toProduct: string; effective: string; effectiveDate: string } | null;
+}
+export interface RadiusSession { id: string; username: string; start: string; end: string | null; durationSeconds: number; downloadBytes: number; uploadBytes: number }
+export type EffectiveMode = 'Immediately' | 'At the end of bill cycle';
+export interface ModifyOptions {
+  currentProduct: string; currentBandwidthMbps: number; billCycleEnd: string; effectiveModes: EffectiveMode[];
+  products: { id: string; name: string; bandwidthMbps: number; direction: 'upgrade' | 'downgrade' }[];
 }
 
 export interface SupportCase { id: string; caseNumber: string; createdAt: string; serviceReference: string; summary: string; status: string; priority: string; partnerContact: string }
@@ -53,7 +61,7 @@ export interface CaseDetail extends SupportCase {
 }
 
 export const ORDER_STATUSES = ['In progress', 'On hold', 'Cancelled', 'Awaiting information', 'Scheduled', 'Acknowledged', 'Completed'];
-export const SERVICE_STATUSES = ['Operational', 'Offline', 'Alt status'];
+export const SERVICE_STATUSES = ['Operational', 'Offline', 'Suspended', 'Alt status'];
 export const UPDATE_STAGES = ['On hold', 'Order placed', 'Appointment confirmed', 'Appointment Change', 'Full fibre service CI created'];
 export const UPDATE_STATUSES = ['In progress', 'On hold', 'Cancelled', 'Rejected', 'Awaiting information', 'Completed', 'Alt status'];
 export const CASE_STATUSES = ['New', 'In progress', 'Awaiting customer', 'Awaiting supplier', 'On hold - scheduled', 'Resolved'];

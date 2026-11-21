@@ -60,7 +60,7 @@ export function Card({ title, help, action, children, className = '', bodyClass 
 // ---------- Status badge ----------
 const badgeMap: Record<string, [string, string]> = {
   'In progress': ['b-green', '↗'], Operational: ['b-green', '⌔'], Resolved: ['b-green', '✓'],
-  'On hold': ['b-orange', '●'], 'On hold - scheduled': ['b-orange', '●'],
+  Suspended: ['b-orange', '⏸'], 'On hold': ['b-orange', '●'], 'On hold - scheduled': ['b-orange', '●'],
   Cancelled: ['b-red', '✕'], Rejected: ['b-red', '✕'], Offline: ['b-red', '✕'],
   'Awaiting information': ['b-amber', '◷'], 'Awaiting customer': ['b-amber', '◷'], 'Awaiting supplier': ['b-amber', '◷'],
   Scheduled: ['b-blue', '▣'], Acknowledged: ['b-blue', '✓'], New: ['b-blue', '✓'],

@@ -77,5 +77,7 @@ the file. They are the only files to change once the real API specs are availabl
 
 Home dashboard · Resources (quick guides / legal / training) · Connections (orders, order
 updates, live service, support cases) · Order detail (amend date, amend contact, cancel,
-comment) · Live service detail (cease service) · Support case detail (respond) ·
+comment) · Live service detail (modify / upgrade-downgrade with effective mode, suspend /
+unsuspend, cease, radius session history - each action has a confirmation step) ·
+Support case detail (respond) ·
 Create support case. Quotes pages are not designed yet and currently route to Home.

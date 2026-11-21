@@ -86,8 +86,8 @@ export const CANCELLATION_REASONS = [
 export type CancellationReason = (typeof CANCELLATION_REASONS)[number];
 
 // ---- Live services ----
-export type ServiceStatus = 'Operational' | 'Offline' | 'Alt status';
-export const SERVICE_STATUSES: ServiceStatus[] = ['Operational', 'Offline', 'Alt status'];
+export type ServiceStatus = 'Operational' | 'Offline' | 'Suspended' | 'Alt status';
+export const SERVICE_STATUSES: ServiceStatus[] = ['Operational', 'Offline', 'Suspended', 'Alt status'];
 export interface Service {
   id: string; location: string; postcode: string; orderReference: string;
   serviceReference: string; quoteReference: string; serviceName: string;
@@ -100,11 +100,26 @@ export interface ServiceFilter {
   page: number; pageSize: number;
 }
 export interface ServiceDetail extends Service {
-  address: string; city: string;
-  radiusUsername: string; ipv4: string; ipv6: string;
+  address: string; city: string; customerName: string;
+  radiusUsername: string; ipv4: string;
+  /** WAN address and delegated prefix */
+  ipv6: string; ipv6Prefix: string;
   online: boolean;
-  radiusSessions: { start: string; end: string | null; ip: string }[];
+  suspended: boolean;
+  /** a modify/upgrade/downgrade waiting for the end of the bill cycle */
+  pendingChange: { toProduct: string; effective: string; effectiveDate: string } | null;
+  billCycleEnd: string;
 }
+export interface RadiusSession { id: string; username: string; start: string; end: string | null; durationSeconds: number; downloadBytes: number; uploadBytes: number }
+
+// ---- Modify (upgrade / downgrade) and suspension ----
+export const EFFECTIVE_MODES = ['Immediately', 'At the end of bill cycle'] as const;
+export type EffectiveMode = (typeof EFFECTIVE_MODES)[number];
+export interface ProductOption { id: string; name: string; bandwidthMbps: number; direction: 'upgrade' | 'downgrade' }
+export interface ModifyOptions { currentProduct: string; currentBandwidthMbps: number; products: ProductOption[]; effectiveModes: readonly EffectiveMode[]; billCycleEnd: string }
+export const SUSPEND_REASONS = ['Payment default', 'Customer request', 'Fraud investigation', 'Acceptable use policy breach', 'Other'] as const;
+export const UNSUSPEND_REASONS = ['Payment received', 'Customer request', 'Investigation closed', 'Other'] as const;
+export type SuspensionAction = 'suspend' | 'unsuspend';
 
 // ---- Order updates feed (Connections > Order updates) ----
 export interface OrderUpdateRow extends OrderUpdate { orderId: string }

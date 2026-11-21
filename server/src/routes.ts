@@ -4,6 +4,8 @@ import * as swift from './adapters/swift.js';
 import * as salesforce from './adapters/salesforce.js';
 import * as sn from './adapters/servicenow.js';
 import * as cases from './adapters/servicenowCases.js';
+import * as svc from './adapters/serviceActions.js';
+import { EFFECTIVE_MODES, SUSPEND_REASONS, UNSUSPEND_REASONS } from './types.js';
 import {
   CASE_CATEGORIES, CASE_PRIORITIES, CASE_STATUSES, IMPACT_LEVELS, URGENCY_LEVELS, CaseFilter, CasePriority, CaseStatus,
 } from './cases.types.js';
@@ -117,6 +119,33 @@ api.post('/services/:id/cease', h(async (req) => {
   if (!reason) throw new BadRequest('a valid cease reason is required');
   return sn.ceaseService(req.user, req.params.id, reason);
 }));
+
+// ---------- Live service: sessions, modify, suspend ----------
+api.get('/services/:id/sessions', h(async (req) => {
+  const { page, pageSize } = paging(req.query, 5);
+  return svc.getSessions(req.user, req.params.id, page, pageSize);
+}));
+api.get('/services/:id/modify-options', h(async (req) => svc.getModifyOptions(req.user, req.params.id)));
+api.post('/services/:id/modify', h(async (req) => {
+  const productId = str(req.body?.productId, 40);
+  const effectiveMode = oneOf(req.body?.effectiveMode, EFFECTIVE_MODES);
+  if (!productId || !effectiveMode) throw new BadRequest('a new product and an effective mode are required');
+  if (req.body?.confirmed !== true) throw new BadRequest('the change must be confirmed');
+  const opts = await svc.getModifyOptions(req.user, req.params.id);
+  if (!opts.products.some((p) => p.id === productId)) throw new BadRequest('that product is not available for this service');
+  return svc.modifyService(req.user, req.params.id, productId, effectiveMode);
+}));
+api.post('/services/:id/suspension', h(async (req) => {
+  const action = oneOf(req.body?.action, ['suspend', 'unsuspend'] as const);
+  const reason = action === 'suspend' ? oneOf(req.body?.reason, SUSPEND_REASONS) : oneOf(req.body?.reason, UNSUSPEND_REASONS);
+  if (!action || !reason) throw new BadRequest('a service type and a valid reason are required');
+  if (req.body?.confirmed !== true) throw new BadRequest('the change must be confirmed');
+  const current = await sn.getService(req.user, req.params.id);
+  if (action === 'suspend' && current.status === 'Suspended') throw new BadRequest('service is already suspended');
+  if (action === 'unsuspend' && current.status !== 'Suspended') throw new BadRequest('service is not suspended');
+  return svc.setSuspension(req.user, req.params.id, action, reason);
+}));
+api.get('/suspension-reasons', h(async () => ({ suspend: SUSPEND_REASONS, unsuspend: UNSUSPEND_REASONS })));
 
 // ---------- Connections: support cases ----------
 const list = <T extends string>(v: unknown, allowed: readonly T[]) =>
