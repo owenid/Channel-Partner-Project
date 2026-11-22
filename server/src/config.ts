@@ -75,8 +75,6 @@ export const config = {
     apiKey: str('KSQL_API_KEY'),
     apiSecret: str('KSQL_API_SECRET'),
     stream: str('KSQL_STREAM', 'SERVICENOW_ORDER_UPDATES_STREAM'),
-    /** which partner id the stream's partner_id column holds: salesforce (matches the design's example data) or servicenow (its text) */
-    partnerIdSource: str('KSQL_PARTNER_ID_SOURCE', 'salesforce') as 'salesforce' | 'servicenow',
   },
 
   salesforce: {

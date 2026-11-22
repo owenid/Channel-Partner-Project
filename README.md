@@ -61,14 +61,14 @@ switches from mock to live when its URL/credentials are set. `.env` files are gi
 | CMS | `CMS_BASE_URL`, `CMS_API_TOKEN`, `CMS_NEWSLETTERS_PATH`, `CMS_OFFERS_PATH` |
 | GIG / SWIFT | `GIG_BASE_URL`, `GIG_API_KEY`, `GIG_USER_HISTORY_PATH`, `GIG_RESELLER_HISTORY_PATH` |
 | ServiceNow | `SN_INSTANCE_URL`, `SN_CLIENT_ID`, `SN_CLIENT_SECRET`, `SN_API_PATH` |
-| ksqlDB | `KSQL_ENDPOINT`, `KSQL_API_KEY`, `KSQL_API_SECRET`, `KSQL_STREAM`, `KSQL_PARTNER_ID_SOURCE` |
+| ksqlDB | `KSQL_ENDPOINT`, `KSQL_API_KEY`, `KSQL_API_SECRET`, `KSQL_STREAM` |
 | Salesforce | `SF_INSTANCE_URL`, `SF_CLIENT_ID`, `SF_CLIENT_SECRET` |
 
 ## Open questions from the designs
 
-1. **ksqlDB `partner_id`** – the Order Status Updates text says it is the `servicenow_account_id`,
-   but every example value (`7806000005iLi4XYZ`) is the Salesforce-style partner id.
-   `KSQL_PARTNER_ID_SOURCE` defaults to `salesforce` to match the examples.
+1. ~~**ksqlDB `partner_id`**~~ – resolved: it is the partner's **Salesforce account id**
+   (`salesforce_account_id` in the Auth0 organization metadata), as the example data shows. The
+   Order Status Updates text naming `servicenow_account_id` should be corrected.
 2. **GIG history paths** – Retrieve Quotes uses `/api/v1/partner/quotes/{id}` for user history,
    reseller history and quote detail, and the overview mentions `/quotes/history`. Paths are
    configurable until GIG confirms.

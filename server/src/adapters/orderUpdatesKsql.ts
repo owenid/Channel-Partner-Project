@@ -18,9 +18,15 @@ import type { PortalUser } from '../auth.js';
 const k = config.ksql;
 export const enabled = !!k.endpoint;
 
-/** partner_id in the stream. The design text says servicenow_account_id, its example data looks like the Salesforce id. */
-export const partnerIdFor = (u: PortalUser) =>
-  k.partnerIdSource === 'servicenow' ? u.servicenowAccountId : (u.salesforceAccountId ?? u.servicenowAccountId);
+/**
+ * partner_id in the stream is the partner's Salesforce account id (Auth0 organization metadata
+ * salesforce_account_id), e.g. '7806000005iLi4XYZ' - confirmed, despite the design text naming
+ * servicenow_account_id.
+ */
+export const partnerIdFor = (u: PortalUser) => {
+  if (!u.salesforceAccountId) throw new UpstreamError('ksqldb', 403, 'partner has no salesforce_account_id in its Auth0 organization metadata');
+  return u.salesforceAccountId;
+};
 
 // KSQL string literal: single quotes doubled; identifiers are fixed/whitelisted
 const lit = (v: string) => `'${v.replace(/'/g, "''")}'`;
