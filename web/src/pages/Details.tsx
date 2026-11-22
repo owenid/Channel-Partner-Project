@@ -7,8 +7,12 @@ import { Badge, Icon, Pagination, RO, Sort, Th, authorIcon, fmtDate, fmtDateTime
 import { AmendContactModal, AmendDateModal, CommentModal, ReasonModal } from './modals';
 
 const UPDATES_PAGE = 5;
-const STAGES = ['Order placed', 'Order Acknowledged', 'Installation Scheduled', 'Order operational'];
-const stageIcons = [Icon.send(), Icon.check(), Icon.calendar(), Icon.check()];
+// Status bar icons (Orders Placed View design): placed, processing, scheduled, completed / exception
+const stepIcon = (label: string, i: number) =>
+  label === 'Rejected' || label === 'Cancelled' ? Icon.xCircle()
+    : label === 'Delayed' ? Icon.calendar()
+    : label === 'On hold' ? <span aria-hidden style={{ fontWeight: 700 }}>II</span>
+    : [Icon.send(), Icon.check(), Icon.calendar(), Icon.check()][i];
 
 function Frame({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -56,11 +60,14 @@ export function OrderPage() {
 
   return (
     <Frame title={`${d.orderReference} - ${d.customerName}`}>
-      <div className="toolbar">
-        <button className="btn btn-teal btn-sm" style={{ height: 36 }} disabled={!d.cancellable} onClick={() => setModal('date')}>Amend installation date {Icon.calendar()}</button>
-        <button className="btn btn-teal btn-sm" style={{ height: 36 }} disabled={!d.cancellable} onClick={() => setModal('contact')}>Amend install contact details {Icon.pencil()}</button>
-        <div className="end"><button className="btn btn-red btn-sm" style={{ height: 36 }} disabled={!d.cancellable} onClick={() => setModal('cancel')}>Cancel order {Icon.xCircle()}</button></div>
-      </div>
+      {/* Cancelled and rejected orders have no actions (Figs 3 and 4 of the Orders Placed View design) */}
+      {d.cancellable && (
+        <div className="toolbar">
+          <button className="btn btn-teal btn-sm" style={{ height: 36 }} onClick={() => setModal('date')}>Amend installation date {Icon.calendar()}</button>
+          <button className="btn btn-teal btn-sm" style={{ height: 36 }} onClick={() => setModal('contact')}>Amend install contact details {Icon.pencil()}</button>
+          <div className="end"><button className="btn btn-red btn-sm" style={{ height: 36 }} onClick={() => setModal('cancel')}>Cancel order {Icon.xCircle()}</button></div>
+        </div>
+      )}
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.3fr', gap: 24, marginBottom: 38 }}>
         <div className="panel"><h3>Location info</h3>
@@ -76,14 +83,16 @@ export function OrderPage() {
             <RO label="Last name" value={d.contact.lastName} />
             <RO label="First name" value={d.contact.firstName} />
             <RO label="Telephone number" value={d.contact.telephone} />
+            <RO label="Order status" value={<Badge status={d.status} />} />
+            <RO label="Order stage" value={d.orderStage || '—'} />
           </div>
         </div>
       </div>
 
       <div className="stepper" aria-label="Order progress">
-        {STAGES.map((s, i) => (
-          <div key={s} className={`step ${i <= d.stageIndex && d.status !== 'Cancelled' ? 'done' : ''}`} aria-current={i === d.stageIndex ? 'step' : undefined}>
-            <span className="circle">{stageIcons[i]}</span>{s}
+        {d.statusPath.steps.map((s, i) => (
+          <div key={s.label} className={`step ${s.state === 'todo' ? '' : s.state === 'partial' ? 'partial' : s.state}`} aria-label={`${s.label}: ${s.state === 'done' ? 'complete' : s.state === 'partial' ? 'in progress' : s.state === 'todo' ? 'not started' : 'current'}`}>
+            <span className="circle">{stepIcon(s.label, i)}</span>{s.label}
           </div>
         ))}
       </div>
@@ -95,11 +104,12 @@ export function OrderPage() {
             <Th label="Date raised" />
             <Th label="Update" sortKey="update" sort={p.sort} onSort={p.setSort} info="Service order this update relates to" />
             <Th label="Status" sortKey="status" sort={p.sort} onSort={p.setSort} />
+            <Th label="Stage" sortKey="stage" sort={p.sort} onSort={p.setSort} />
             <Th label="Comment" sortKey="comment" sort={p.sort} onSort={p.setSort} />
           </tr></thead>
-          <tbody>{p.items.map((u) => (
+          <tbody>{p.items.length === 0 && <tr><td colSpan={5} className="empty">No updates for this order yet.</td></tr>}{p.items.map((u) => (
             <tr key={u.id}>
-              <td style={{ whiteSpace: 'nowrap' }}>{fmtDateTime(u.raisedAt)}</td><td>{u.update}</td><td><Badge status={u.status} /></td>
+              <td style={{ whiteSpace: 'nowrap' }}>{fmtDateTime(u.raisedAt)}</td><td>{u.update}</td><td><Badge status={u.status} /></td><td>{u.stage}</td>
               <td><div className="comment">{authorIcon(u.authorType)}<span><strong>{u.author} (Additional comments):</strong> {u.comment}</span></div></td>
             </tr>
           ))}</tbody>
@@ -110,7 +120,7 @@ export function OrderPage() {
       {modal === 'date' && <AmendDateModal order={d} onClose={() => setModal(null)} onDone={done('Appointment change requested')} />}
       {modal === 'contact' && <AmendContactModal order={d} onClose={() => setModal(null)} onDone={done('Install contact updated')} />}
       {modal === 'cancel' && <ReasonModal title="Order cancellation" label="Reason for cancelling" path={`/orders/${d.id}/cancel`} onClose={() => setModal(null)} onDone={done('Cancellation requested')} />}
-      {modal === 'comment' && <CommentModal title="Add comment to order" path={`/orders/${d.id}/comments`} onClose={() => setModal(null)} onDone={done('Comment added')} />}
+      {modal === 'comment' && <CommentModal title="Add comment to order update" label="Your comment" cta="Submit comment" path={`/orders/${d.id}/comments`} onClose={() => setModal(null)} onDone={done('Comment added')} />}
       {toast && <div className="toast" role="status">{toast}</div>}
     </Frame>
   );

@@ -27,7 +27,7 @@ export function Header() {
         <nav className="nav" aria-label="Main">
           <div className="nav-item"><NavLink to="/" end>Home</NavLink></div>
           <div className="nav-item"><NavLink to="/connections">Connections</NavLink></div>
-          <Dropdown label="Quotes" to="/quotes" items={[['Recent quotes', '/quotes'], ['New quote', '/quotes/new']]} />
+          <Dropdown label="Quotes" to="/quotes" items={[['New quote', '/quotes/new'], ['My quotes', '/quotes']]} />
           <Dropdown label="Resources" to="/resources" items={[['Quick guides', '/resources?tab=quick-guides'], ['Legal', '/resources?tab=legal'], ['Training', '/resources?tab=training']]} />
           <Dropdown label="Support" highlight={false} to="/connections?tab=support-cases" items={[['Support cases', '/connections?tab=support-cases'], ['Contact us', '/']]} />
         </nav>

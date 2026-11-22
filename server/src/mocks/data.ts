@@ -82,7 +82,7 @@ export function mockResources(category: ResourceCategory, page: number, pageSize
 // ---- Orders ----
 const places = ['Portsmouth', 'Marlborough', 'Ringwood', 'Bournemouth', 'Inverness', 'Glasgow', 'Bristol', 'Leeds', 'Swindon'];
 const quoteIds = ['51234', '45634', '234234', '123456', '123456', '783729', '99812', '45122', '67001'];
-const statuses: OrderStatus[] = ['In progress', 'On hold', 'Cancelled', 'Awaiting information', 'Scheduled', 'Acknowledged'];
+const statuses: OrderStatus[] = ['In progress', 'On hold', 'Cancelled', 'Delayed', 'Scheduled', 'Acknowledged', 'Rejected'];
 const speeds = [500, 500, 300, 900, 500, 500];
 const allOrders: Order[] = Array.from({ length: 42 }, (_, i) => ({
   id: `ord-${i + 1}`,
@@ -117,6 +117,7 @@ export function mockOrders(f: OrderFilter): Page<Order> {
 
 // ---- Order detail (in-memory, so amend/cancel actions are visible while the server runs) ----
 import type { OrderDetail, OrderUpdate } from '../types.js';
+import { statusPath } from '../lib/orderPath.js';
 const firstNames = ['Amanda', 'Liam', 'Priya', 'Tom', 'Grace', 'Owen'];
 const lastNames = ['Jacob', 'Hughes', 'Patel', 'Barnes', 'Clarke', 'Idehen'];
 const updateRows: [string, string, OrderUpdate['authorType'], string][] = [
@@ -126,7 +127,12 @@ const updateRows: [string, string, OrderUpdate['authorType'], string][] = [
   ['Awaiting information', 'System', 'system', 'ORD0001345 - Giganet Full Fibre Bundle v14 - Stage has changed to & confirmed KCI-2.'],
   ['Awaiting information', 'Owen Idehen', 'agent', 'Please pick another date as the initial date you picked is not currently available. You can do this using the partner portal by navigating to the connections menu.'],
 ];
-const stageFor: Record<string, number> = { 'In progress': 1, 'On hold': 1, Cancelled: 0, 'Awaiting information': 1, Scheduled: 2, Acknowledged: 1, Completed: 3 };
+// order_line_stage / state as the Order Status Updates DB would report them for each mock status
+const stageFor: Record<string, [string, string]> = {
+  'In progress': ['Web order', ''], 'On hold': ['On hold', ''], Cancelled: ['Cancelled', ''], Delayed: ['Delayed', ''],
+  'Awaiting information': ['Delayed', ''], Scheduled: ['Confirmed-KCI2', ''], Acknowledged: ['Fulfilled', ''],
+  Completed: ['Fulfilled', 'Completed'], Rejected: ['Order rejected', ''],
+};
 const details = new Map<string, OrderDetail>();
 
 export function mockOrderDetail(id: string): OrderDetail | undefined {
@@ -146,13 +152,30 @@ export function mockOrderDetail(id: string): OrderDetail | undefined {
     datePlaced: '2022-08-12T10:13:00', dateInstalled: o.status === 'Acknowledged' ? '2022-08-22T15:40:00' : null,
     contact: { firstName: firstNames[i % 6], lastName: lastNames[i % 6], telephone: '01202903928' },
     supplier: 'CityFibre',
+    addressKey: String(1775071095 + i),
+    productCode: `R-CF-${o.productName.match(/FTTP (\d+)/)?.[1] ?? 500}`,
+    productType: 'fttp',
     appointment: { date: '2023-04-25', slot: 'AM', label: '25/04/2023 08:00 - 13:00 (AM slot)' },
-    cancellable: o.status !== 'Cancelled' && o.status !== 'Completed',
-    stageIndex: stageFor[o.status] ?? 0,
+    cancellable: !['Cancelled', 'Completed', 'Rejected'].includes(o.status),
+    orderStage: stageFor[o.status]?.[0] ?? '', orderLineState: stageFor[o.status]?.[1] ?? '',
+    statusPath: statusPath(stageFor[o.status]?.[0], stageFor[o.status]?.[1]),
     updates,
   };
   details.set(id, d);
   return d;
+}
+
+/** Used by the GIG mock so orders placed from a quote show up under Connections. */
+export function mockAddOrder(o: Order, d: Omit<OrderDetail, keyof Order | 'updates' | 'cancellable' | 'orderStage' | 'orderLineState' | 'statusPath'>) {
+  allOrders.unshift(o);
+  details.set(o.id, {
+    ...o, ...d, cancellable: true, orderStage: '', orderLineState: '', statusPath: statusPath('', ''),
+    updates: [{
+      id: `${o.id}-u0`, orderReference: o.orderReference, update: `Service order for ${o.productName}`,
+      stage: 'Order placed', status: 'In progress', comment: 'Order placed via the partner portal.',
+      author: 'System', authorType: 'system', raisedAt: o.createdAt,
+    }],
+  });
 }
 
 const addUpdate = (d: OrderDetail, stage: string, status: string, text: string, author: string, authorType: OrderUpdate['authorType'] = 'customer') =>
@@ -188,6 +211,7 @@ export function mockAmendContact(id: string, c: OrderDetail['contact'], author: 
 export function mockCancel(id: string, reason: string, author: string) {
   const d = mockOrderDetail(id); if (!d) return undefined;
   d.status = 'Cancelled'; d.cancellable = false;
+  d.orderStage = 'Cancelled'; d.statusPath = statusPath('Cancelled', '');
   const o = allOrders.find((x) => x.id === id); if (o) o.status = 'Cancelled';
   addUpdate(d, 'Cancellation requested', 'In progress', `Reason: ${reason}`, author);
   return d;
@@ -312,12 +336,13 @@ export function mockSuspension(id: string, action: SuspensionAction) {
 
 // ---- Order updates feed ----
 import type { OrderUpdateFilter, OrderUpdateRow } from '../types.js';
-const feedStatus = ['In progress', 'On hold', 'Cancelled', 'Rejected', 'Alt status'];
+const feedStatus = ['In progress', 'On Hold', 'Canceled', 'Rejected', 'Acknowledged'];
+const feedStage = ['Web order', 'On hold', 'Cancelled', 'Order rejected', 'Confirmed KCI-2'];
 const feed: OrderUpdateRow[] = Array.from({ length: 42 }, (_, i) => {
   const [, author, authorType, text] = updateRows[i % 2 === 0 ? 0 : 3];
   return {
     id: `upd-${i + 1}`, orderId: `ord-${(i % 42) + 1}`, orderReference: `ORD${String(12804 + i).padStart(7, '0')}`,
-    update: 'Service order for CityFibre FTTP provisioning service', stage: 'On hold',
+    update: 'Service Order for FTTP Installation Service', stage: feedStage[i % feedStage.length],
     status: feedStatus[i % feedStatus.length], comment: text, author, authorType,
     raisedAt: new Date(Date.UTC(2022, 3, 8 + i, 14, 52)).toISOString(),
   };

@@ -8,6 +8,8 @@ import { Home } from './pages/Home';
 import { Resources } from './pages/Resources';
 import { Connections } from './pages/Connections';
 import { CasePage, OrderPage, ServicePage } from './pages/Details';
+import { MyQuotes, NewQuote } from './pages/Quotes';
+import { QuoteDetailPage } from './pages/QuoteDetail';
 
 function App() {
   return (
@@ -20,7 +22,9 @@ function App() {
         <Route path="/connections/services/:id" element={<ServicePage />} />
         <Route path="/connections/cases/:id" element={<CasePage />} />
         <Route path="/resources" element={<Resources />} />
-        {/* Quotes screens not designed yet: send to the home page for now */}
+        <Route path="/quotes" element={<MyQuotes />} />
+        <Route path="/quotes/new" element={<NewQuote />} />
+        <Route path="/quotes/:id" element={<QuoteDetailPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       <FeedbackTab />

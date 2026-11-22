@@ -16,7 +16,7 @@ async function authHeaders(): Promise<Record<string, string>> {
 }
 
 export async function api<T>(path: string, init: { method?: string; body?: unknown } = {}): Promise<T> {
-  const res = await fetch(`/api${path}`, {
+  const res = await fetch(`/api/v1${path}`, {
     method: init.method ?? 'GET',
     headers: { Accept: 'application/json', ...(init.body ? { 'Content-Type': 'application/json' } : {}), ...(await authHeaders()) },
     body: init.body ? JSON.stringify(init.body) : undefined,
@@ -28,7 +28,7 @@ export async function api<T>(path: string, init: { method?: string; body?: unkno
 
 /** Download a CSV export with the auth header (a plain link can't send it). */
 export async function download(path: string) {
-  const res = await fetch(`/api${path}`, { headers: await authHeaders() });
+  const res = await fetch(`/api/v1${path}`, { headers: await authHeaders() });
   if (!res.ok) throw new ApiError(res.status, {});
   const name = res.headers.get('Content-Disposition')?.match(/filename="(.+)"/)?.[1] ?? 'export.csv';
   const url = URL.createObjectURL(await res.blob());

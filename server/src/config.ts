@@ -25,14 +25,33 @@ export const config = {
     /** namespace used for custom claims added by an Auth0 Action */
     claimNamespace: str('AUTH0_CLAIM_NAMESPACE', 'https://portal/'),
     get enabled() { return !!this.domain && !!this.audience; },
+    /** Machine-to-machine app (read:users) used to read user_metadata for the Account profile */
+    mgmtClientId: str('AUTH0_MGMT_CLIENT_ID'),
+    mgmtClientSecret: str('AUTH0_MGMT_CLIENT_SECRET'),
+    get profileFromMgmtApi() { return !!this.domain && !!this.mgmtClientId; },
   },
 
   cms: {
     name: 'cms',
-    baseUrl: str('CMS_BASE_URL').replace(/\/$/, ''),
+    baseUrl: str('CMS_BASE_URL').replace(/\/$/, ''), // e.g. https://cms.example.com
     get useMock() { return !this.baseUrl; },
     authHeader: staticBearer(str('CMS_API_TOKEN')),
-  } as UpstreamConfig,
+    /** Drupal JSON:API resources from the Home Page Menu design */
+    newslettersPath: str('CMS_NEWSLETTERS_PATH', '/drupalwebsite/jsonapi/node/newsletters'),
+    offersPath: str('CMS_OFFERS_PATH', '/drupalwebsite/jsonapi/node/offers'),
+  } as UpstreamConfig & { newslettersPath: string; offersPath: string },
+
+  /** Giganet Information Gateway - quotes, addresses, appointments, orders (falls back to SWIFT_*) */
+  gig: {
+    name: 'gig',
+    baseUrl: (process.env.GIG_BASE_URL ?? str('SWIFT_BASE_URL')).replace(/\/$/, ''),
+    get useMock() { return !this.baseUrl; },
+    authHeader: staticBearer(process.env.GIG_API_KEY ?? str('SWIFT_API_KEY')),
+    // The Retrieve Quotes design uses /api/v1/partner/quotes/{id} for user history, reseller
+    // history AND quote detail; these are configurable until GIG confirms the real paths.
+    userHistoryPath: str('GIG_USER_HISTORY_PATH', '/api/v1/partner/quotes/{swift_user_id}'),
+    resellerHistoryPath: str('GIG_RESELLER_HISTORY_PATH', '/api/v1/partner/quotes/{swift_reseller_id}'),
+  } as UpstreamConfig & { userHistoryPath: string; resellerHistoryPath: string },
 
   swift: {
     name: 'swift',
@@ -48,6 +67,16 @@ export const config = {
     /** Scripted REST API base path that fronts orders/services for the portal */
     apiPath: str('SN_API_PATH', '/api/x_partner_portal/v1'),
     get useMock() { return !this.instanceUrl || !this.clientId; },
+  },
+
+  /** Confluent Cloud ksqlDB holding the ServiceNow order status updates stream */
+  ksql: {
+    endpoint: str('KSQL_ENDPOINT'), // e.g. https://pksqlc-xxxxx.eu-west-2.aws.confluent.cloud:443
+    apiKey: str('KSQL_API_KEY'),
+    apiSecret: str('KSQL_API_SECRET'),
+    stream: str('KSQL_STREAM', 'SERVICENOW_ORDER_UPDATES_STREAM'),
+    /** which partner id the stream's partner_id column holds: salesforce (matches the design's example data) or servicenow (its text) */
+    partnerIdSource: str('KSQL_PARTNER_ID_SOURCE', 'salesforce') as 'salesforce' | 'servicenow',
   },
 
   salesforce: {

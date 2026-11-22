@@ -5,7 +5,7 @@ import { UpstreamError } from './httpClient.js';
  * OAuth2 client-credentials token provider with in-memory caching.
  * Used for Salesforce (/services/oauth2/token) and ServiceNow (/oauth_token.do).
  */
-export function clientCredentials(opts: { system: string; tokenUrl: string; clientId: string; clientSecret: string; scope?: string }) {
+export function clientCredentials(opts: { system: string; tokenUrl: string; clientId: string; clientSecret: string; scope?: string; audience?: string }) {
   type Token = { value: string; expires: number; instanceUrl?: string };
   let token: Token | null = null;
   let inflight: Promise<Token> | null = null;
@@ -13,6 +13,7 @@ export function clientCredentials(opts: { system: string; tokenUrl: string; clie
   async function fetchToken() {
     const body = new URLSearchParams({ grant_type: 'client_credentials', client_id: opts.clientId, client_secret: opts.clientSecret });
     if (opts.scope) body.set('scope', opts.scope);
+    if (opts.audience) body.set('audience', opts.audience);
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), config.timeoutMs);
     try {

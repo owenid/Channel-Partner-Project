@@ -65,6 +65,13 @@ const badgeMap: Record<string, [string, string]> = {
   'Awaiting information': ['b-amber', '◷'], 'Awaiting customer': ['b-amber', '◷'], 'Awaiting supplier': ['b-amber', '◷'],
   Scheduled: ['b-blue', '▣'], Acknowledged: ['b-blue', '✓'], New: ['b-blue', '✓'],
   Completed: ['b-green', '✓'], 'Alt status': ['b-dark', ''],
+  // quote availability (Check FTTP Availability design)
+  Available: ['b-green', '✓'], 'Pre-Order': ['b-blue', '◷'], 'Coming-Soon': ['b-amber', '◷'], ComingSoon: ['b-amber', '◷'],
+  'Register-Interest': ['b-dark', '☆'], 'Not available': ['b-red', '✕'],
+  // order states (Order Status Updates design)
+  Delayed: ['b-orange', '◷'], 'On Hold': ['b-orange', '●'], Canceled: ['b-red', '✕'], Draft: ['b-dark', ''],
+  'Revision in Progress': ['b-amber', '↻'], 'Awaiting Information': ['b-amber', '◷'],
+  'Assessing Cancellation': ['b-orange', '◷'], 'Cancellation in Progress': ['b-orange', '◷'],
 };
 export function Badge({ status }: { status: string }) {
   const [cls, glyph] = badgeMap[status] ?? ['b-dark', ''];

@@ -11,7 +11,8 @@ app.use(cors({ origin: config.corsOrigin }));
 app.use(express.json({ limit: '100kb' }));
 
 app.get('/health', (_req, res) => res.json({ ok: true, upstreams: upstreamModes() }));
-app.use('/api', requireAuth, api);
+// Versioned as in the design docs (e.g. /api/v1/portal/newsletter, /api/v1/partner/quotes)
+app.use('/api/v1', requireAuth, api);
 
 app.listen(config.port, () => {
   console.log(`Portal back end on http://localhost:${config.port}`);

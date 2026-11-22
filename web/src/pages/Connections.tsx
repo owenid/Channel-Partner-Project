@@ -2,7 +2,7 @@ import { ReactNode, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { download, qs, useApi } from '../api/client';
 import {
-  CASE_PRIORITIES, CASE_STATUSES, ORDER_STATUSES, SERVICE_STATUSES, UPDATE_STAGES, UPDATE_STATUSES,
+  CASE_PRIORITIES, CASE_STATUSES, ORDER_STATUSES, SERVICE_STATUSES,
   Order, OrderUpdateRow, Page, Service, SupportCase,
 } from '../api/types';
 import { Badge, Icon, Pagination, Sort, Th, authorIcon, fmtDateTime } from '../components/ui';
@@ -153,12 +153,14 @@ function OrdersTab({ shell, address }: { shell: (f: ReactNode, clear: () => void
 
 function UpdatesTab({ shell }: { shell: (f: ReactNode, clear: () => void, c: ReactNode) => JSX.Element }) {
   const l = useList('/order-updates', { orderRef: '', stage: '', status: '', from: '', to: '' });
+  // filter options from the Order Status Updates design (states + order line stages)
+  const opts = useApi<{ states: string[]; stages: string[] }>('/order-updates/options');
   const f = l.filters;
   return shell(
     <>
       <Text label="Order reference" value={f.orderRef} onChange={(v) => l.set('orderRef', v)} />
-      <Choice label="Stage" value={f.stage} options={UPDATE_STAGES} onChange={(v) => l.set('stage', v)} />
-      <Choice label="Status" value={f.status} options={UPDATE_STATUSES} onChange={(v) => l.set('status', v)} />
+      <Choice label="Stage" value={f.stage} options={opts.data?.stages ?? []} onChange={(v) => l.set('stage', v)} />
+      <Choice label="Status" value={f.status} options={opts.data?.states ?? []} onChange={(v) => l.set('status', v)} />
       <Dates label="Date generated" from={f.from} to={f.to} onFrom={(v) => l.set('from', v)} onTo={(v) => l.set('to', v)} />
     </>,
     l.clear,
@@ -171,14 +173,16 @@ function UpdatesTab({ shell }: { shell: (f: ReactNode, clear: () => void, c: Rea
           <Th label="Stage" sortKey="stage" sort={l.sort} onSort={l.setSort} />
           <Th label="Status" sortKey="status" sort={l.sort} onSort={l.setSort} />
           <Th label="Comment" sortKey="comment" sort={l.sort} onSort={l.setSort} />
-          <Th label="Date raised" />
+          <Th label="Date raised" sortKey="raisedAt" sort={l.sort} onSort={l.setSort} />
+          <Th label="Action" />
         </tr></thead>
-        <Rows<OrderUpdateRow> list={l.list} cols={6} render={(u) => (
+        <Rows<OrderUpdateRow> list={l.list} cols={7} render={(u) => (
           <tr key={u.id}>
             <td><Link to={`/connections/orders/${u.orderId}`} style={{ color: 'inherit' }}>{u.orderReference}</Link></td>
             <td style={{ maxWidth: 220 }}>{u.update}</td><td>{u.stage}</td><td><Badge status={u.status} /></td>
             <td><div className="comment">{authorIcon(u.authorType)}<span><strong>{u.author} (Additional comments):</strong> {u.comment}</span></div></td>
             <td>{fmtDateTime(u.raisedAt)}</td>
+            <td><Link className="btn btn-teal btn-sm" to={`/connections/orders/${u.orderId}`}>View</Link></td>
           </tr>
         )} />
       </table></div>

@@ -1,7 +1,8 @@
 import { FormEvent, ReactNode, useState } from 'react';
 import { api, useApi } from '../api/client';
-import { CANCELLATION_REASONS, CaseDetail, OrderDetail, AccountProfile } from '../api/types';
+import { CANCELLATION_REASONS, CaseDetail, OrderDetail, AccountProfile, AppointmentSlot } from '../api/types';
 import { Icon, Modal } from '../components/ui';
+import { SlotPicker, slotLabel } from '../components/SlotPicker';
 
 /** Submit helper: tracks busy/error state around an API call. */
 function useSubmit<T>(fn: () => Promise<T>, onDone: (r: T) => void) {
@@ -23,19 +24,20 @@ const Foot = ({ onBack, busy, label, disabled }: { onBack?: () => void; busy: bo
 );
 
 // ---------- Orders ----------
-const localNow = () => { const d = new Date(Date.now() + 864e5); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 16); };
-
+/**
+ * Amend installation date: slots come from GIG (Engineer Appointments design); submitting
+ * reserves the chosen slot against the order (Order Placement design, "Amend Install Date").
+ */
 export function AmendDateModal({ order, onClose, onDone }: { order: OrderDetail; onClose: () => void; onDone: (o: OrderDetail) => void }) {
-  const [when, setWhen] = useState('');
+  const [chosen, setChosen] = useState<AppointmentSlot | null>(null);
   const [confirmed, setConfirmed] = useState(false);
-  const s = useSubmit(() => api<OrderDetail>(`/orders/${order.id}/appointment`, { method: 'POST', body: { preferred: new Date(when).toISOString(), confirmed } }), onDone);
-  const slot = when ? `${new Date(when).toLocaleDateString('en-GB')}  ${new Date(when).getHours() < 13 ? '08:00 - 13:00 (AM slot)' : '13:00 - 18:00 (PM slot)'}` : order.appointment?.label;
+  const s = useSubmit(() => api<OrderDetail>(`/orders/${order.id}/appointment`, { method: 'POST', body: { ...chosen, confirmed } }), onDone);
+  const slot = chosen ? slotLabel(chosen) : order.appointment?.label;
   return (
-    <Modal title="Amend installation date" onClose={onClose}>
+    <Modal title="Amend installation date" onClose={onClose} width={900}>
       <form onSubmit={s.submit}>
-        <label className="field" style={{ maxWidth: 370 }}><span>Preferred appointment</span>
-          <input className="input" type="datetime-local" required min={localNow()} value={when} onChange={(e) => setWhen(e.target.value)} />
-        </label>
+        <span className="label">Preferred appointment</span>
+        <SlotPicker productType={order.productType || 'fttp'} addressKey={order.addressKey} productCode={order.productCode} postcode={order.postcode} value={chosen} onChange={setChosen} />
         <hr />
         <h3 style={{ font: '700 14px var(--body)', marginBottom: 16 }}>Order information</h3>
         <dl className="dl" style={{ gridTemplateColumns: '135px 1fr', rowGap: 8 }}>
@@ -47,7 +49,7 @@ export function AmendDateModal({ order, onClose, onDone }: { order: OrderDetail;
         <hr />
         <label className="check"><input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} /> I confirm that the details are correct</label>
         {s.error && <p className="error-text" style={{ marginTop: 16 }}>{s.error}</p>}
-        <Foot onBack={onClose} busy={s.busy} label="Submit reservation" disabled={!confirmed || !when} />
+        <Foot onBack={onClose} busy={s.busy} label="Submit reservation" disabled={!confirmed || !chosen} />
       </form>
     </Modal>
   );
@@ -102,13 +104,15 @@ export function ReasonModal({ title, label, product, path, onClose, onDone }: {
   );
 }
 
-export function CommentModal({ title, path, onClose, onDone, cta = 'Send' }: { title: string; path: string; onClose: () => void; onDone: (r: unknown) => void; cta?: string }) {
+export function CommentModal({ title, path, onClose, onDone, cta = 'Send', label = 'Comment' }: {
+  title: string; path: string; onClose: () => void; onDone: (r: unknown) => void; cta?: string; label?: string;
+}) {
   const [comment, setComment] = useState('');
   const s = useSubmit(() => api(path, { method: 'POST', body: { comment } }), onDone);
   return (
     <Modal title={title} onClose={onClose}>
       <form onSubmit={s.submit}>
-        <label className="field"><span>Comment</span><textarea className="textarea input" required maxLength={2000} value={comment} onChange={(e) => setComment(e.target.value)} /></label>
+        <label className="field"><span>{label}</span><textarea className="textarea input" required maxLength={2000} placeholder="Text here" value={comment} onChange={(e) => setComment(e.target.value)} /></label>
         {s.error && <p className="error-text">{s.error}</p>}
         <Foot onBack={onClose} busy={s.busy} label={cta} />
       </form>
@@ -119,8 +123,7 @@ export function CommentModal({ title, path, onClose, onDone, cta = 'Send' }: { t
 // ---------- Support cases ----------
 export function CreateCaseModal({ onClose, onCreated }: { onClose: () => void; onCreated: (c: CaseDetail) => void }) {
   const opts = useApi<{ categories: string[]; impact: string[]; urgency: string[] }>('/cases/options');
-  const dash = useApi<{ profile: { ok: boolean; data?: AccountProfile } }>('/dashboard');
-  const profile = dash.data?.profile.ok ? dash.data.profile.data : undefined;
+  const profile = useApi<AccountProfile>('/portal/profile').data;
   const [f, setF] = useState({ partnerReference: '', category: '', summary: '', detail: '', impact: '', urgency: '', serviceReference: '' });
   const s = useSubmit(() => api<CaseDetail>('/cases', { method: 'POST', body: f }), onCreated);
   const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF({ ...f, [k]: e.target.value });
