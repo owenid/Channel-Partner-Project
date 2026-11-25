@@ -252,3 +252,4 @@ tr.selected td { background: #f2fafb; }
 .step.done + .step.error::before, .step.done + .step.warn::before { background: var(--red); }
 .step.done + .step.warn::before { background: var(--orange); }
 .step.done + .step.partial::before { background: linear-gradient(90deg, #dddde6, var(--teal)); }
+.date-range .input { min-width: 0; padding: 0 8px; }

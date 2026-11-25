@@ -142,7 +142,7 @@ export function mockOrderDetail(id: string): OrderDetail | undefined {
   const i = allOrders.indexOf(o);
   const updates: OrderUpdate[] = updateRows.map(([status, author, authorType, text], j) => ({
     id: `${id}-u${j}`, orderReference: `SO000${18413 + i}`,
-    update: 'Service order for CityFibre FTTP provisioning service', stage: status, status,
+    update: 'Service Order for FTTP Installation Service', stage: ['Confirmed KCI-2', 'Confirmed KCI-2', 'Appointment confirmed', 'Web order', 'Web order'][j] ?? 'Web order', status,
     comment: text, author, authorType, raisedAt: '2022-04-08T14:52:00',
   }));
   const d: OrderDetail = {
