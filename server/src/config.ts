@@ -25,6 +25,9 @@ export const config = {
     /** namespace used for custom claims added by an Auth0 Action */
     claimNamespace: str('AUTH0_CLAIM_NAMESPACE', 'https://portal/'),
     get enabled() { return !!this.domain && !!this.audience; },
+    /** overridable for local testing against a fake Auth0; defaults follow the tenant domain */
+    get issuer() { return process.env.AUTH0_ISSUER || `https://${this.domain}/`; },
+    get jwksUri() { return process.env.AUTH0_JWKS_URI || `https://${this.domain}/.well-known/jwks.json`; },
     /** Machine-to-machine app (read:users) used to read user_metadata for the Account profile */
     mgmtClientId: str('AUTH0_MGMT_CLIENT_ID'),
     mgmtClientSecret: str('AUTH0_MGMT_CLIENT_SECRET'),

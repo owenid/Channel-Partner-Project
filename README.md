@@ -31,18 +31,20 @@ user (a partner admin), so every journey works end to end without credentials.
 `GET /health` shows which systems are `mock` vs `live`. To see the partner-user view, start the
 server with `DEV_USER_PERMISSIONS=read:own-quotes`.
 
-## Public demo (Render)
+## Public demo (Render + Auth0)
 
 `render.yaml` deploys the portal as one web service: the back end serves the built front end.
 
-1. In the Render dashboard choose **New → Blueprint** and pick this repository.
-2. When asked, set **`DEMO_PASSWORD`**. Visitors then get a browser sign-in prompt (user `demo`).
-   Without Auth0 every visitor is the built-in test admin, so keep the password set on any public URL.
+1. Set up Auth0 by following **[docs/auth0-setup.md](docs/auth0-setup.md)**: an API with the
+   `read:own-quotes` / `read:all-quotes` permissions, partner user and partner admin roles, an SPA
+   application, and a login Action that puts the partner ids in the access token.
+2. In the Render dashboard choose **New → Blueprint**, pick this repository, and enter the
+   `AUTH0_*` and `VITE_AUTH0_*` values. Then add the Render URL to the SPA's allowed URLs in Auth0.
 3. Render builds with `npm ci --include=dev && npm run build` and starts with `npm start`.
 
-The demo runs entirely on mock data. Free Render services sleep when idle, so the first request
-after a while can take about a minute. Production build locally: `npm run build`, then
-`DEMO_PASSWORD=... npm start` (serves on `PORT`, default 4000).
+Without Auth0, every visitor is the built-in test admin, so `DEMO_PASSWORD` adds a browser
+password prompt instead. It is ignored once Auth0 is configured. The demo runs on mock data, and
+free Render services sleep when idle, so the first request after a while can take about a minute.
 
 ## Design documents implemented
 

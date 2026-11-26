@@ -47,8 +47,21 @@ const MOCK_PROFILE: AccountProfile = {
 };
 
 /** Account profile card: Auth0 user metadata + organisation display name. */
-export async function getAccountProfile(u: { sub: string; orgId: string; email?: string }): Promise<AccountProfile> {
-  if (up.useMock) return MOCK_PROFILE;
+export async function getAccountProfile(u: {
+  sub: string; orgId: string; email?: string; name?: string;
+  claimsProfile?: { firstName?: string; lastName?: string; partnerName?: string; role?: string; department?: string };
+}): Promise<AccountProfile> {
+  if (up.useMock) {
+    // Signed in with Auth0 but no Management API: build the card from the token's claims
+    const c = u.claimsProfile;
+    if (config.auth0.enabled && c) {
+      return {
+        firstName: c.firstName ?? u.name ?? '', lastName: c.lastName ?? '', email: u.email ?? '',
+        partnerName: c.partnerName ?? '', role: c.role ?? '', department: c.department ?? '',
+      };
+    }
+    return MOCK_PROFILE;
+  }
   const [user, org] = await Promise.all([getUserRecord(u.sub), getOrganization(u.orgId)]);
   const m = user.user_metadata ?? {};
   return {

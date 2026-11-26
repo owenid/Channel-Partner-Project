@@ -22,6 +22,8 @@ export interface PortalUser {
   permissions: string[];
   name?: string;
   email?: string;
+  /** profile fields an Auth0 Action may add to the token (used when the Management API isn't configured) */
+  claimsProfile?: { firstName?: string; lastName?: string; partnerName?: string; role?: string; department?: string };
 }
 
 declare global {
@@ -46,9 +48,7 @@ const DEV_USER: PortalUser = {
   email: 'john.doe@xyzcomms.co.uk',
 };
 
-const jwks = config.auth0.enabled
-  ? createRemoteJWKSet(new URL(`https://${config.auth0.domain}/.well-known/jwks.json`))
-  : null;
+const jwks = config.auth0.enabled ? createRemoteJWKSet(new URL(config.auth0.jwksUri)) : null;
 
 const claim = (p: JWTPayload, key: string) => {
   const v = p[config.auth0.claimNamespace + key] ?? p[key];
@@ -67,7 +67,7 @@ async function resolveIdentity(payload: JWTPayload): Promise<PortalUser | null> 
   let servicenowAccountId = claim(payload, 'servicenow_account_id');
   let swiftResellerId = claim(payload, 'swift_reseller_id');
   let salesforceAccountId = claim(payload, 'salesforce_account_id');
-  let partnerName: string | undefined;
+  let partnerName = claim(payload, 'partner_name');
   let name = claim(payload, 'name');
 
   if (mgmtApiEnabled && (!orgId || !swiftUserId || !servicenowAccountId || !swiftResellerId || !salesforceAccountId)) {
@@ -80,7 +80,7 @@ async function resolveIdentity(payload: JWTPayload): Promise<PortalUser | null> 
       servicenowAccountId ??= org.metadata?.servicenow_account_id;
       swiftResellerId ??= org.metadata?.swift_reseller_id;
       salesforceAccountId ??= org.metadata?.salesforce_account_id;
-      partnerName = org.display_name ?? org.name;
+      partnerName ??= org.display_name ?? org.name;
     }
   }
   if (!orgId || !servicenowAccountId || !swiftUserId || !swiftResellerId) return null;
@@ -88,6 +88,10 @@ async function resolveIdentity(payload: JWTPayload): Promise<PortalUser | null> 
   return {
     sub, userId: claim(payload, 'user_id') ?? sub, orgId, partnerName, servicenowAccountId, salesforceAccountId,
     swiftUserId, swiftResellerId, permissions, name, email: claim(payload, 'email'),
+    claimsProfile: {
+      firstName: claim(payload, 'given_name'), lastName: claim(payload, 'family_name'),
+      partnerName: claim(payload, 'partner_name') ?? partnerName, role: claim(payload, 'role'), department: claim(payload, 'department'),
+    },
   };
 }
 
@@ -101,7 +105,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
   if (!token) return res.status(401).json({ error: 'missing_token' });
   let payload: JWTPayload;
   try {
-    ({ payload } = await jwtVerify(token, jwks, { issuer: `https://${config.auth0.domain}/`, audience: config.auth0.audience }));
+    ({ payload } = await jwtVerify(token, jwks, { issuer: config.auth0.issuer, audience: config.auth0.audience, algorithms: ['RS256'] }));
     if (!payload.sub) throw new Error('no sub');
   } catch {
     return res.status(401).json({ error: 'invalid_token' });

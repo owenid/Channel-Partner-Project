@@ -1,15 +1,20 @@
 import type { Request, Response, NextFunction } from 'express';
 import { timingSafeEqual } from 'node:crypto';
+import { config } from './config.js';
 
 /**
  * Optional HTTP Basic auth in front of the whole demo (web app and API), switched on by
  * setting DEMO_PASSWORD (and optionally DEMO_USER, default "demo").
  *
  * Without Auth0 the back end signs everyone in as the built-in dev user, so a public demo
- * must not be left open. This is a demo gate only - real partners sign in with Auth0.
+ * must not be left open. When Auth0 is configured this gate is off: Auth0 does the sign-in,
+ * and Basic auth would collide with the Auth0 bearer token in the Authorization header.
  */
 const user = process.env.DEMO_USER || 'demo';
-const password = process.env.DEMO_PASSWORD || '';
+const password = config.auth0.enabled ? '' : (process.env.DEMO_PASSWORD || '');
+if (config.auth0.enabled && process.env.DEMO_PASSWORD) {
+  console.log('Auth0 is configured, so DEMO_PASSWORD is ignored');
+}
 
 const same = (a: string, b: string) => {
   const x = Buffer.from(a), y = Buffer.from(b);

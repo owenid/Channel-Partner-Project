@@ -1,5 +1,7 @@
 # Render blueprint: one web service runs the API and serves the built front end.
 # Deploy: Render dashboard -> New -> Blueprint -> pick this repository.
+# Sign-in: set the AUTH0_* / VITE_AUTH0_* values (see docs/auth0-setup.md). Leave DEMO_PASSWORD
+# empty when Auth0 is used; it is only a fallback gate for a demo without Auth0.
 services:
   - type: web
     name: channel-partner-portal-demo
@@ -12,7 +14,21 @@ services:
     envVars:
       - key: NODE_VERSION
         value: "22"
-      # Password-protects the demo (browser sign-in prompt). Render asks for the value at deploy time.
+      # --- Auth0 (back end: verifies access tokens) ---
+      - key: AUTH0_DOMAIN            # e.g. your-tenant.uk.auth0.com
+        sync: false
+      - key: AUTH0_AUDIENCE          # the API identifier, e.g. https://partner-portal-api
+        sync: false
+      - key: AUTH0_CLAIM_NAMESPACE
+        value: https://portal/
+      # --- Auth0 (front end: read at build time) ---
+      - key: VITE_AUTH0_DOMAIN
+        sync: false
+      - key: VITE_AUTH0_CLIENT_ID
+        sync: false
+      - key: VITE_AUTH0_AUDIENCE
+        sync: false
+      # --- Fallback only: password prompt when Auth0 is not configured ---
       - key: DEMO_USER
         value: demo
       - key: DEMO_PASSWORD
