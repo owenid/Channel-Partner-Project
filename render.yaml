@@ -1,0 +1,20 @@
+# Render blueprint: one web service runs the API and serves the built front end.
+# Deploy: Render dashboard -> New -> Blueprint -> pick this repository.
+services:
+  - type: web
+    name: channel-partner-portal-demo
+    runtime: node
+    plan: free
+    region: frankfurt
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      # Password-protects the demo (browser sign-in prompt). Render asks for the value at deploy time.
+      - key: DEMO_USER
+        value: demo
+      - key: DEMO_PASSWORD
+        sync: false
+      # Every upstream stays on mock data until its settings are added (see server/.env.example)

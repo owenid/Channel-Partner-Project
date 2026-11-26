@@ -5,11 +5,15 @@
     "server",
     "web"
   ],
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "npm run dev --workspace server & npm run dev --workspace web",
     "dev:server": "npm run dev --workspace server",
     "dev:web": "npm run dev --workspace web",
-    "build": "npm run build --workspace server && npm run build --workspace web"
+    "build": "npm run build --workspace server && npm run build --workspace web",
+    "start": "npm run start --workspace server"
   },
   "overrides": {
     "esbuild": "0.24.2"
